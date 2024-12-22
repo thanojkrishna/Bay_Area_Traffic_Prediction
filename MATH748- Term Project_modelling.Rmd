@@ -1,0 +1,220 @@
+```{r}
+library(dplyr)
+library(caret)
+library(rpart)
+library(ggplot2)
+library(randomForest)
+```
+
+
+```{r}
+# Load required libraries
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(lubridate)
+
+# Load the summarized dataset
+summarized_path <- "D:/Masters/Semesters/Fall 2024/Math 748/Project/Datasets/processed/traffic_summary.csv"
+
+traffic_summary <- read.csv(summarized_path)
+
+# Ensure proper data types
+traffic_summary <- traffic_summary %>%
+  select(-Lane_Type) %>%  # Remove Lane_Type
+  mutate(
+    Station = as.factor(Station),
+    Day_Name = as.factor(Day_Name),
+    Hour = as.factor(Hour),  # Hour as factor for time-based trends
+    Route = as.factor(Route),
+    Direction_of_Travel = as.factor(Direction_of_Travel),
+    Weekend_Flag = as.factor(Weekend_Flag),
+    Peak_Hour_Flag = as.factor(Peak_Hour_Flag),
+    Avg_Lanes_Count = as.numeric(Avg_Lanes_Count),
+    Avg_Total_Occupancy = as.numeric(Avg_Total_Occupancy),
+    Avg_Speed = as.numeric(Avg_Speed),
+    Avg_Total_Flow = as.numeric(Avg_Total_Flow)
+  )
+
+# Preview dataset
+cat("Preview of Traffic Summary Dataset:\n")
+print(head(traffic_summary))
+
+# Check data structure
+cat("\nData Structure:\n")
+str(traffic_summary)
+
+# # Data Quality Checks
+# cat("\nChecking for Missing Values:\n")
+# missing_values <- sapply(traffic_summary, function(x) sum(is.na(x)))
+# print(missing_values)
+# 
+# # Visualize Response Variable
+# cat("\nVisualizing the Response Variable (Total Flow):\n")
+# ggplot(traffic_summary, aes(x = Avg_Total_Flow)) +
+#   geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+#   labs(title = "Distribution of Total Flow", x = "Total Flow", y = "Frequency") +
+#   theme_minimal()
+# 
+# cat("\nVisualizing the Relationship between Avg Speed and Total Flow:\n")
+# ggplot(traffic_summary, aes(x = Avg_Speed, y = Avg_Total_Flow)) +
+#   geom_point(alpha = 0.5) +
+#   labs(title = "Avg Speed vs Total Flow", x = "Avg Speed", y = "Total Flow") +
+#   theme_minimal()
+
+```
+
+
+#dataset splitting
+```{r}
+
+# Initialize a list to store results
+results <- list()
+
+
+# Data splitting: 70% Training, 30% Testing
+set.seed(1)  # For reproducibility
+train_index <- createDataPartition(traffic_summary$Avg_Total_Flow, p = 0.7, list = FALSE)
+train_data <- traffic_summary[train_index, ]
+test_data <- traffic_summary[-train_index, ]
+#Confirm split
+cat("Training set size:", nrow(train_data), "\n")
+cat("Testing set size:", nrow(test_data), "\n")
+```
+
+#linear regression
+```{r}
+# Linear Regression
+linear_model <- lm(Avg_Total_Flow ~ ., data = train_data)
+linear_preds <- predict(linear_model, newdata = test_data)
+results$Linear_Regression <- postResample(linear_preds, test_data$Avg_Total_Flow)
+
+# Model Summary
+cat("\nLinear Regression Summary:\n")
+print(summary(linear_model))
+
+# Predictor Importance
+linear_importance <- as.data.frame(summary(linear_model)$coefficients)
+linear_importance <- linear_importance[order(abs(linear_importance[, "Estimate"]), decreasing = TRUE), ]
+cat("\nLinear Regression - Top Predictors:\n")
+print(head(linear_importance))
+
+```
+
+#Decision Tree
+```{r}
+# Decision Tree
+tree_model <- rpart(Avg_Total_Flow ~ ., data = train_data, method = "anova")
+tree_preds <- predict(tree_model, newdata = test_data)
+results$Decision_Tree <- postResample(tree_preds, test_data$Avg_Total_Flow)
+
+# Model Summary
+cat("\nDecision Tree Summary:\n")
+print(summary(tree_model))
+
+# Predictor Importance
+tree_importance <- as.data.frame(tree_model$variable.importance)
+tree_importance <- tree_importance[order(tree_importance[, 1], decreasing = TRUE), , drop = FALSE]
+colnames(tree_importance) <- "Importance"
+cat("\nDecision Tree - Top Predictors:\n")
+print(head(tree_importance))
+
+```
+
+
+#XGBoost
+```{r}
+library(xgboost)  # For XGBoost
+
+# Prepare data for XGBoost
+xgb_train_data <- model.matrix(Avg_Total_Flow ~ . - 1, data = train_data)
+xgb_test_data <- model.matrix(Avg_Total_Flow ~ . - 1, data = test_data)
+
+xgb_dtrain <- xgb.DMatrix(data = xgb_train_data, label = train_data$Avg_Total_Flow)
+xgb_dtest <- xgb.DMatrix(data = xgb_test_data, label = test_data$Avg_Total_Flow)
+
+# Train XGBoost Model
+xgb_params <- list(objective = "reg:squarederror", eta = 0.1, max_depth = 6)
+xgb_model <- xgb.train(params = xgb_params, data = xgb_dtrain, nrounds = 100)
+
+# Predict and Evaluate
+xgb_preds <- predict(xgb_model, newdata = xgb_dtest)
+results$XGBoost <- postResample(xgb_preds, test_data$Avg_Total_Flow)
+
+# Model Summary
+cat("\nXGBoost Summary:\n")
+xgb_summary <- xgb.importance(model = xgb_model)
+print(head(xgb_summary))
+
+# Predictor Importance
+cat("\nXGBoost - Top Predictors:\n")
+print(head(xgb_summary))
+
+```
+```{r}
+# Ridge and Lasso Regression using glmnet
+library(glmnet)
+
+# Prepare data for Ridge and Lasso Regression
+x_train <- model.matrix(Avg_Total_Flow ~ . - 1, data = train_data)
+y_train <- train_data$Avg_Total_Flow
+x_test <- model.matrix(Avg_Total_Flow ~ . - 1, data = test_data)
+y_test <- test_data$Avg_Total_Flow
+
+# Ridge Regression
+ridge_model <- glmnet(x_train, y_train, alpha = 0)
+ridge_preds <- predict(ridge_model, s = 0.01, newx = x_test)
+results$Ridge_Regression <- postResample(ridge_preds, y_test)
+
+# Ridge Model Summary
+cat("\nRidge Regression Summary:\n")
+ridge_coefs <- as.matrix(coef(ridge_model, s = 0.01))  # Convert to regular matrix
+ridge_importance <- data.frame(
+  Predictor = rownames(ridge_coefs),
+  Importance = abs(ridge_coefs[, 1])
+)
+ridge_importance <- ridge_importance[order(-ridge_importance$Importance), ]
+ridge_importance <- ridge_importance[ridge_importance$Importance > 0, ]  # Remove zero coefficients
+cat("\nRidge Regression - Top Predictors:\n")
+print(head(ridge_importance))
+
+# Lasso Regression
+lasso_model <- glmnet(x_train, y_train, alpha = 1)
+lasso_preds <- predict(lasso_model, s = 0.01, newx = x_test)
+results$Lasso_Regression <- postResample(lasso_preds, y_test)
+
+# Lasso Model Summary
+cat("\nLasso Regression Summary:\n")
+lasso_coefs <- as.matrix(coef(lasso_model, s = 0.01))  # Convert to regular matrix
+lasso_importance <- data.frame(
+  Predictor = rownames(lasso_coefs),
+  Importance = abs(lasso_coefs[, 1])
+)
+lasso_importance <- lasso_importance[order(-lasso_importance$Importance), ]
+lasso_importance <- lasso_importance[lasso_importance$Importance > 0, ]  # Remove zero coefficients
+cat("\nLasso Regression - Top Predictors:\n")
+print(head(lasso_importance))
+
+
+
+```
+
+
+
+#Evaluate Results
+```{r}
+# Compile Results
+results_df <- do.call(rbind, results)
+colnames(results_df) <- c("RMSE", "R-Squared", "MAE")
+rownames(results_df) <- c("Linear Regression", "Decision Tree", "XGBoost", "Ridge Regression", "Lasso Regression")
+
+# Print Results
+print("Model Performance Comparison:")
+print(results_df)
+
+```
+
+
+
+
+

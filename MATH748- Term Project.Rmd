@@ -1,0 +1,309 @@
+---
+title: "MATH 748- Term Project"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  word_document: default
+---
+
+Load Required Libraries
+```{r}
+# Load required libraries
+library(dplyr)       # For data manipulation
+library(lubridate)   # For working with dates and timestamps
+library(readr)       # For reading and writing CSV files
+library(tidyr)       # For tidying and reshaping data
+library(ggplot2)     # For visualizations (if needed later)
+library(stringr)     # For string manipulation
+```
+Define Paths and Settings
+
+```{r}
+# Paths for raw and processed data
+traffic_raw_path <- "D:/Masters/Semesters/Fall 2024/Math 748/Project/Datasets/raw/pems_traffic_volumes/"
+
+incidents_raw_path <- "D:/Masters/Semesters/Fall 2024/Math 748/Project/Datasets/raw/chp_incidents/"
+
+# Define column names for traffic data
+traffic_col_names <- c("Timestamp", "Station", "District", "Route", "Direction_of_Travel", 
+                       "Lane_Type", "Station_Length", "Samples", "Percent_Observed", 
+                       "Total_Flow", "Avg_Occupancy", "Avg_Speed", "Delay_V35", 
+                       "Delay_V40", "Delay_V45", "Delay_V50", "Delay_V55", "Delay_V60", 
+                       "Lane1_Flow", "Lane1_Avg_Occ", "Lane1_Avg_Speed", 
+                       "Lane2_Flow", "Lane2_Avg_Occ", "Lane2_Avg_Speed", 
+                       "Lane3_Flow", "Lane3_Avg_Occ", "Lane3_Avg_Speed", 
+                       "Lane4_Flow", "Lane4_Avg_Occ", "Lane4_Avg_Speed",
+                       "Lane5_Flow", "Lane5_Avg_Occ", "Lane5_Avg_Speed", 
+                       "Lane6_Flow", "Lane6_Avg_Occ", "Lane6_Avg_Speed", 
+                       "Lane7_Flow", "Lane7_Avg_Occ", "Lane7_Avg_Speed", 
+                       "Lane8_Flow", "Lane8_Avg_Occ", "Lane8_Avg_Speed")
+
+# Columns to retain for traffic data
+traffic_selected_columns <- c("Timestamp", "Station", "District", "Route", "Direction_of_Travel", 
+                               "Lane_Type", "Samples", "Percent_Observed", "Total_Flow", 
+                               "Avg_Occupancy", "Avg_Speed", "Lanes_Count")  # Added Lanes_Count
+
+# Define column names for CHP Incidents data
+incident_col_names <- c("Incident_ID", "CC_Code", "Incident_Number", "Timestamp", "Description", 
+                        "Location", "Area", "Zoom_Map", "TB_xy", "Latitude", "Longitude", 
+                        "District", "County_FIPS_ID", "City_FIPS_ID", "Freeway_Number", 
+                        "Freeway_Direction", "State_Postmile", "Absolute_Postmile", 
+                        "Severity", "Duration")
+
+# Define selected columns based on the analysis
+incident_selected_columns <- c("Incident_ID", "Timestamp", "District", "Freeway_Number", 
+                                "Freeway_Direction", "Severity", "Duration", 
+                                "Location", "Latitude", "Longitude")
+
+traffic_processed_path <- "D:/Masters/Semesters/Fall 2024/Math 748/Project/Datasets/processed/traffic_data_processed.csv"
+
+incidents_processed_path <- "D:/Masters/Semesters/Fall 2024/Math 748/Project/Datasets/processed/chp_incidents_processed.csv"
+
+
+```
+
+Process Traffic Data
+```{r}
+# Define a function to process traffic data files
+process_traffic_file <- function(file) {
+  data <- read.csv(file, header = FALSE, stringsAsFactors = FALSE)
+  
+  # Assign column names
+  colnames(data) <- traffic_col_names
+  
+  # Calculate the number of lanes
+  data <- data %>%
+    mutate(
+    Lanes_Count = rowSums(!is.na(select(., starts_with("Lane") & ends_with("_Flow"))))
+   )%>%
+    select(all_of(traffic_selected_columns)) %>%
+    mutate(
+      Timestamp = trimws(Timestamp),  # Remove leading/trailing spaces
+      Timestamp = as.POSIXct(Timestamp, format = "%m/%d/%Y %H:%M:%S", tz = "UTC"),  # Convert to datetime
+      Timestamp = floor_date(Timestamp, unit = "hour"),  # Round to the nearest hour
+      District = as.integer(District),
+      Route = factor(Route, levels = c(101, 80, 280, 880), labels = c("US-101", "I-80", "I-280", "I-880")),
+      Lane_Type = as.factor(Lane_Type),
+      Direction_of_Travel = as.factor(Direction_of_Travel),
+      Samples = as.integer(Samples),
+      Percent_Observed = as.numeric(Percent_Observed),
+      Total_Flow = as.integer(Total_Flow),
+      Avg_Occupancy = as.numeric(Avg_Occupancy),
+      Avg_Speed = as.numeric(Avg_Speed)
+    ) %>%
+    filter(District == 4 & Route %in% c("US-101", "I-80", "I-280", "I-880"))  # Filter for relevant data
+  
+  return(data)
+}
+
+# Process all traffic files
+traffic_files <- list.files(path = traffic_raw_path, pattern = "*.txt", full.names = TRUE, recursive = TRUE)
+traffic_data <- do.call(rbind, lapply(traffic_files, process_traffic_file))
+
+# Save processed traffic data
+#write.csv(traffic_data %>% mutate(Timestamp = format(Timestamp, "%Y-%m-%d %H:%M:%S")), file =traffic_processed_path, row.names = FALSE)
+
+# Preview processed data
+head(traffic_data)
+str(traffic_data)
+
+```
+Process CHP Incidents Data
+```{r}
+# Set paths for raw data and output processed data
+incidents_raw_path <- "D:/Masters/Semesters/Fall 2024/Math 748/Project/Datasets/raw/chp_incidents/"
+
+# Define column names for CHP Incidents data
+incident_col_names <- c("Incident_ID", "CC_Code", "Incident_Number", "Timestamp", "Description", 
+                        "Location", "Area", "Zoom_Map", "TB_xy", "Latitude", "Longitude", 
+                        "District", "County_FIPS_ID", "City_FIPS_ID", "Freeway_Number", 
+                        "Freeway_Direction", "State_Postmile", "Absolute_Postmile", 
+                        "Severity", "Duration")
+
+# Define selected columns based on the analysis
+incident_selected_columns <- c("Incident_ID", "Timestamp", "District", "Freeway_Number", 
+                                "Freeway_Direction", "Severity", "Duration", 
+                                "Location", "Latitude", "Longitude")
+
+# Define a function to process each CHP Incidents file
+process_incidents_file <- function(file) {
+  data <- read.csv(file, header = FALSE, stringsAsFactors = FALSE)
+  colnames(data) <- incident_col_names
+  data <- data %>%
+    select(all_of(incident_selected_columns)) %>%
+    mutate(
+      Timestamp = trimws(Timestamp), # Remove leading/trailing spaces
+      Timestamp = as.POSIXct(Timestamp, format = "%m/%d/%Y %H:%M:%S", tz = "UTC"), # Convert to datetime
+      Timestamp = floor_date(Timestamp, unit = "hour"), # Round to the nearest hour
+      District = as.integer(District),
+      Freeway_Number = factor(Freeway_Number, levels = c(101, 80, 280, 880), labels = c("US-101", "I-80", "I-280", "I-880")),
+      Freeway_Direction = as.factor(Freeway_Direction),
+      Severity = as.character(Severity),
+      Duration = as.numeric(Duration),
+      Latitude = as.numeric(Latitude),
+      Longitude = as.numeric(Longitude)
+    ) %>%
+    filter(District == 4 &  Freeway_Number %in% c("US-101", "I-80", "I-280", "I-880"))
+  return(data)
+}
+
+# Process all CHP Incidents files
+incident_files <- list.files(path = incidents_raw_path, pattern = "*.txt", full.names = TRUE, recursive = TRUE)
+incidents_data <- do.call(rbind, lapply(incident_files, process_incidents_file))
+
+
+# Export processed CHP Incidents data
+#write.csv(incidents_data %>% mutate(Timestamp = format(Timestamp, "%Y-%m-%d %H:%M:%S")), file = incidents_processed_path, row.names = FALSE)
+# Preview processed data
+head(incidents_data)
+str(incidents_data)
+
+```
+
+
+
+Missing Value Analysis
+```{r}
+
+# Function to calculate and visualize missing values
+analyze_missing_data <- function(data, dataset_name) {
+  missing_summary <- data.frame(
+    Column = names(data),
+    Missing_Percentage = sapply(data, function(col) mean(is.na(col)) * 100)
+  )
+  print(paste("Missing Data Summary for", dataset_name))
+  print(missing_summary)
+  
+  # Visualize missing data (optional, if using ggplot2)
+  if ("ggplot2" %in% rownames(installed.packages())) {
+    library(ggplot2)
+    ggplot(missing_summary, aes(x = reorder(Column, -Missing_Percentage), y = Missing_Percentage)) +
+      geom_bar(stat = "identity", fill = "steelblue") +
+      coord_flip() +
+      labs(
+        title = paste("Missing Data Analysis for", dataset_name),
+        x = "Columns",
+        y = "Percentage Missing"
+      ) +
+      theme_minimal()
+  }
+  
+  return(missing_summary)
+}
+
+# Analyze missing data for both datasets
+traffic_missing_summary <- analyze_missing_data(traffic_data, "Traffic Data")
+incidents_missing_summary <- analyze_missing_data(incidents_data, "Incidents Data")
+
+```
+
+Total_Flow, Avg_Occupancy and Avg_Speed
+```{r}
+# Step 1: Remove all NA values from Timestamp,Total_Flow, Avg_Speed
+traffic_data <- traffic_data %>%
+  filter(!is.na(Timestamp))
+
+traffic_data <- traffic_data %>%
+  filter(Avg_Speed > 0 & !is.na(Avg_Speed))
+
+traffic_data <- traffic_data %>%
+  filter(Total_Flow>0 & !is.na(Total_Flow))
+
+
+# Step 3: Summarize missing value analysis and final dataset structure
+missing_summary <- traffic_data %>%
+  summarise(
+    Total_Flow_Missing_Percentage = sum(is.na(Total_Flow)) / n() * 100,
+    Avg_Occupancy_Missing_Percentage = sum(is.na(Avg_Occupancy)) / n() * 100,
+    Avg_Speed_Missing_Percentage = sum(is.na(Avg_Speed)) / n() * 100
+  )
+
+# Display missing value summary
+print("Summary of Missing Values After Handling:")
+print(missing_summary)
+
+# Summarize the final dataset
+print("Final Dataset Summary:")
+print(summary(traffic_data[, c("Total_Flow", "Avg_Occupancy", "Avg_Speed")]))
+
+# Save the updated traffic & incidents data to the processed file
+write.csv(traffic_data%>% mutate(Timestamp = format(Timestamp, "%Y-%m-%d %H:%M:%S")),
+          traffic_processed_path, 
+          row.names = FALSE)
+
+write.csv(incidents_data %>% mutate(Timestamp = format(Timestamp, "%Y-%m-%d %H:%M:%S")), 
+          file = incidents_processed_path, 
+          row.names = FALSE)
+
+```
+
+
+```{r}
+str(traffic_data)
+head(traffic_data)
+str(incidents_data)
+head(incidents_data)
+```
+#summarize data
+```{r}
+# Ensure proper data types
+traffic_data <- traffic_data %>%
+  mutate(
+    Timestamp = as.POSIXct(Timestamp, format = "%Y-%m-%d %H:%M:%S"),
+    Route = as.factor(Route),
+    Direction_of_Travel = as.factor(Direction_of_Travel),
+    Lane_Type = as.factor(Lane_Type)
+  )
+
+# Add additional features
+traffic_data <- traffic_data %>%
+  mutate(
+    Day_Name = weekdays(Timestamp),
+    Hour = hour(Timestamp),
+    Weekend_Flag = as.factor(ifelse(Day_Name %in% c("Saturday", "Sunday"), 1, 0)),
+    Peak_Hour_Flag = as.factor(ifelse(Hour %in% c(5,6,7, 8, 9, 10,11,12,13,14,15,16, 17, 18,19), 1, 0))
+  )
+
+# Summarize the data
+traffic_summary <- traffic_data %>%
+  group_by(Station, Day_Name, Hour, Route, Direction_of_Travel, Lane_Type) %>%
+  summarize(
+    Avg_Lanes_Count = mean(Lanes_Count, na.rm = TRUE),  # Average lane count
+    Avg_Total_Occupancy = mean(Avg_Occupancy, na.rm = TRUE),  # Total occupancy sum
+    Avg_Speed = mean(Avg_Speed, na.rm = TRUE),  # Average speed
+    Avg_Total_Flow = mean(Total_Flow, na.rm = TRUE),  # Total flow sum
+    Weekend_Flag = first(Weekend_Flag),  # Consistent flag per group
+    Peak_Hour_Flag = first(Peak_Hour_Flag),
+    .groups = "drop"  # Prevent grouped data frame in result
+  )
+
+# Convert categorical variables to factors (ensuring consistency)
+traffic_summary <- traffic_summary %>%
+  mutate(
+    Day_Name = as.factor(Day_Name),
+    Route = as.factor(Route),
+    Direction_of_Travel = as.factor(Direction_of_Travel),
+    Lane_Type = as.factor(Lane_Type)
+  )
+
+# Preview the summarized data
+cat("Preview of Summarized Data:\n")
+print(head(traffic_summary))
+cat("\nSummary of Data:\n")
+print(summary(traffic_summary))
+
+# Data Quality Checks
+cat("\nTotal Records in Summarized Data: ", nrow(traffic_summary), "\n")
+cat("Checking for Missing Values:\n")
+print(sapply(traffic_summary, function(x) sum(is.na(x))))
+
+# Save summarized data for further analysis
+summarized_path <- "D:/Masters/Semesters/Fall 2024/Math 748/Project/Datasets/processed/traffic_summary.csv"
+write.csv(traffic_summary, summarized_path, row.names = FALSE)
+
+cat("\nSummarized data saved to: ", summarized_path, "\n")
+```
+
+
+
