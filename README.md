@@ -13,7 +13,6 @@ To predict hourly traffic flow (Avg_Total_Flow) across Bay Area freeways and ide
 - `data/`: Processed and summarized dataset.
 - `scripts/`: R scripts for preprocessing, EDA, and modeling.
 - `visuals/`: Power BI visualizations used in the project.
-- `presentation/`: Final project presentation in `.pptx`.
 - `report/`: Final project report in `.pdf`.
 
 ---
