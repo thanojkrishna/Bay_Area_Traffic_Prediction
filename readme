@@ -1,6 +1,7 @@
+
 # Bay Area Traffic Prediction - Folder Structure ReadMe Files
 
-### 📂 `data/`
+## 📂 data/
 This folder contains processed datasets used for building and evaluating the traffic prediction models. Ensure sensitive data is excluded, and sample datasets are provided for reference.
 
 **Contents:**
@@ -9,7 +10,7 @@ This folder contains processed datasets used for building and evaluating the tra
 
 ---
 
-### 📂 `scripts/`
+## 📂 scripts/
 Contains all R scripts used for data preprocessing, model training, and evaluation.
 
 **Contents:**
@@ -19,7 +20,7 @@ Contains all R scripts used for data preprocessing, model training, and evaluati
 
 ---
 
-### 📂 `notebooks/`
+## 📂 notebooks/
 Includes exploratory notebooks for in-depth data analysis and visual representation.
 
 **Contents:**
@@ -28,7 +29,7 @@ Includes exploratory notebooks for in-depth data analysis and visual representat
 
 ---
 
-### 📂 `visualizations/`
+## 📂 visualizations/
 Stores all generated charts, graphs, and visual outputs from EDA and model evaluation.
 
 **Contents:**
@@ -38,7 +39,7 @@ Stores all generated charts, graphs, and visual outputs from EDA and model evalu
 
 ---
 
-### 📂 `docs/`
+## 📂 docs/
 Holds additional documentation, reports, or notes relevant to the project.
 
 **Contents:**
@@ -47,7 +48,7 @@ Holds additional documentation, reports, or notes relevant to the project.
 
 ---
 
-### 📂 `models/`
+## 📂 models/
 Contains serialized models for future loading and prediction.
 
 **Contents:**
